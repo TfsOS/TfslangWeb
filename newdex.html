@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tfslang interpreter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            padding: 20px;
+        }
+        #output {
+            border: 1px solid #333;
+            background-color: white;
+            padding: 10px;
+            min-height: 400px;
+            margin-top: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .dot {
+            position: absolute;
+            border-radius: 50%;
+        }
+        .shape {
+            position: absolute;
+        }
+        .button, .input-field {
+            position: absolute;
+        }
+        .draggable {
+            cursor: grab;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Advanced Custom Programming Language</h1>
+<textarea id="code" rows="15" cols="70" placeholder="Write your custom code here..."></textarea><br>
+<button onclick="runCode()">Run Code</button>
+<button onclick="saveCode()">Save Code</button>
+<input type="file" id="fileInput" onchange="loadCode(event)" />
+
+<script>
+function saveCode() {
+    const code = document.getElementById("code").value;
+    const filename = prompt("Enter a name for the file:", "document.tl");
+    if (filename) {
+        const blob = new Blob([code], { type: "text/tl" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+    }
+}
+
+function loadCode(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById("code").value = e.target.result;
+        };
+        reader.readAsText(file);
+    }
+}
+</script>
+
+
+<div id="output"></div>
+
+<script>
+// Global registry of functions, variables, and input values
+const functionRegistry = {};
+const variableRegistry = {};
+const inputBindings = {};
+
+// Function to parse and run the custom code
+function runCode() {
+    const code = document.getElementById("code").value;
+    const lines = code.split("\n");
+    const output = document.getElementById("output");
+    output.innerHTML = '';  // Clear the previous output
+    let loopCounter = 0;  // For handling loops
+
+    const evalExpression = (expression) => {
+        // Safely evaluate arithmetic expressions or variables
+        return Function('"use strict";return (' + expression + ')')();
+    }
+
+    const parseTokens = (line) => line.trim().split(' ').filter(token => token !== "");
+
+    // Helper to get text content from a line with quotes
+    const getQuotedText = (line) => line.substring(line.indexOf('"') + 1, line.lastIndexOf('"'));
+
+    // Helper to extract numbers
+    const extractNumbers = (tokens, keyword) => {
+        const index = tokens.indexOf(keyword);
+        if (index > -1) return [parseInt(tokens[index + 1]), parseInt(tokens[index + 2])];
+        return [0, 0];
+    };
+
+    // Execute a single line of code
+    const executeLine = (line) => {
+        const tokens = parseTokens(line);
+        if (tokens.length === 0) return;
+
+        const command = tokens[0];
+
+        // Handle variable assignments
+        if (command === 'let') {
+            const varName = tokens[1];
+            const varValue = evalExpression(tokens.slice(3).join(' '));
+            variableRegistry[varName] = varValue;
+        }
+
+        // Handle printing of text
+        if (command === 'print') {
+            const text = getQuotedText(line);
+            const color = tokens.includes('color') ? tokens[tokens.indexOf('color') + 1] : 'black';
+            const [x, y] = extractNumbers(tokens, 'at');
+            const fontSize = tokens.includes('size') ? tokens[tokens.indexOf('size') + 1] : '16px';
+            const bold = tokens.includes('bold') ? 'bold' : 'normal';
+            const italic = tokens.includes('italic') ? 'italic' : 'normal';
+
+            const textElement = document.createElement('div');
+            textElement.style.position = 'absolute';
+            textElement.style.left = `${x}px`;
+            textElement.style.top = `${y}px`;
+            textElement.style.color = color;
+            textElement.style.fontSize = fontSize;
+            textElement.style.fontWeight = bold;
+            textElement.style.fontStyle = italic;
+            textElement.innerText = text;
+            output.appendChild(textElement);
+        }
+
+        // Handle dots
+        if (command === 'dot') {
+            const color = tokens.includes('color') ? tokens[tokens.indexOf('color') + 1] : 'black';
+            const size = tokens.includes('size') ? parseInt(tokens[tokens.indexOf('size') + 1]) : 20;
+            const [x, y] = extractNumbers(tokens, 'at');
+            
+            const dotElement = document.createElement('div');
+            dotElement.classList.add('dot');
+            dotElement.style.backgroundColor = color;
+            dotElement.style.width = `${size}px`;
+            dotElement.style.height = `${size}px`;
+            dotElement.style.left = `${x}px`;
+            dotElement.style.top = `${y}px`;
+            output.appendChild(dotElement);
+        }
+
+        // Handle rectangles
+        if (command === 'rect') {
+            const color = tokens.includes('color') ? tokens[tokens.indexOf('color') + 1] : 'black';
+            const width = tokens.includes('width') ? parseInt(tokens[tokens.indexOf('width') + 1]) : 100;
+            const height = tokens.includes('height') ? parseInt(tokens[tokens.indexOf('height') + 1]) : 100;
+            const [x, y] = extractNumbers(tokens, 'at');
+            const rotate = tokens.includes('rotate') ? tokens[tokens.indexOf('rotate') + 1] : '0';
+
+            const rectElement = document.createElement('div');
+            rectElement.classList.add('shape');
+            rectElement.style.backgroundColor = color;
+            rectElement.style.width = `${width}px`;
+            rectElement.style.height = `${height}px`;
+            rectElement.style.left = `${x}px`;
+            rectElement.style.top = `${y}px`;
+            rectElement.style.transform = `rotate(${rotate}deg)`;
+            output.appendChild(rectElement);
+        }
+
+        // Handle circles
+        if (command === 'circle') {
+            const color = tokens.includes('color') ? tokens[tokens.indexOf('color') + 1] : 'black';
+            const radius = tokens.includes('radius') ? parseInt(tokens[tokens.indexOf('radius') + 1]) : 50;
+            const [x, y] = extractNumbers(tokens, 'at');
+
+            const circleElement = document.createElement('div');
+            circleElement.classList.add('shape');
+            circleElement.style.backgroundColor = color;
+            circleElement.style.width = `${radius * 2}px`;
+            circleElement.style.height = `${radius * 2}px`;
+            circleElement.style.borderRadius = '50%';
+            circleElement.style.left = `${x}px`;
+            circleElement.style.top = `${y}px`;
+            output.appendChild(circleElement);
+        }
+
+        // Handle custom button
+        if (command === 'button') {
+            const text = getQuotedText(line);
+            const color = tokens.includes('color') ? tokens[tokens.indexOf('color') + 1] : 'grey';
+            const [x, y] = extractNumbers(tokens, 'at');
+            const onclickAction = tokens.includes('onclick') ? tokens[tokens.indexOf('onclick') + 1] : null;
+
+            const buttonElement = document.createElement('button');
+            buttonElement.classList.add('button');
+            buttonElement.style.position = 'absolute';
+            buttonElement.style.left = `${x}px`;
+            buttonElement.style.top = `${y}px`;
+            buttonElement.style.backgroundColor = color;
+            buttonElement.innerText = text;
+
+            if (onclickAction) {
+                buttonElement.onclick = functionRegistry[onclickAction];
+            }
+            output.appendChild(buttonElement);
+        }
+
+        // Handle input fields
+        if (command === 'input') {
+            const placeholder = getQuotedText(line);
+            const [x, y] = extractNumbers(tokens, 'at');
+            const binding = tokens.includes('bind') ? tokens[tokens.indexOf('bind') + 1] : null;
+
+            const inputElement = document.createElement('input');
+            inputElement.classList.add('input-field');
+            inputElement.style.position = 'absolute';
+            inputElement.style.left = `${x}px`;
+            inputElement.style.top = `${y}px`;
+            inputElement.setAttribute('placeholder', placeholder);
+            
+            if (binding) {
+                inputElement.oninput = function() {
+                    inputBindings[binding] = inputElement.value;
+                };
+            }
+            output.appendChild(inputElement);
+        }
+
+        // Handle if-else conditionals
+        if (command === 'if') {
+            const condition = tokens[1];
+            const trueStatement = line.substring(line.indexOf('then') + 5);
+            if (evalExpression(condition)) {
+                executeLine(trueStatement);
+            }
+        }
+
+        // Handle for loops
+        if (command === 'for') {
+            const loopCount = parseInt(tokens[1]);
+            loopCounter += loopCount;
+            const block = line.substring(line.indexOf('{') + 1, line.indexOf('}'));
+            for (let i = 0; i < loopCount; i++) {
+                executeLine(block);
+            }
+        }
+
+        // Handle animations
+        if (command === 'animate') {
+            const shapeType = tokens[1];
+            const fromX = parseInt(tokens[tokens.indexOf('at') + 1]);
+            const fromY = parseInt(tokens[tokens.indexOf('at') + 2]);
+            const toX = parseInt(tokens[tokens.indexOf('to') + 1]);
+            const toY = parseInt(tokens[tokens.indexOf('to') + 2]);
+            const duration = tokens[tokens.indexOf('duration') + 1];
+
+            const element = document.createElement('div');
+            element.classList.add(shapeType);
+            element.style.position = 'absolute';
+            element.style.left = `${fromX}px`;
+            element.style.top = `${fromY}px`;
+
+            // Animate to new position
+            element.animate([
+                { left: `${fromX}px`, top: `${fromY}px` },
+                { left: `${toX}px`, top: `${toY}px` }
+            ], {
+                duration: parseFloat(duration) * 1000,
+                fill: 'forwards'
+            });
+            output.appendChild(element);
+        }
+
+        // Handle functions
+        if (command === 'function') {
+            const functionName = tokens[1];
+            const functionBody = line.substring(line.indexOf('{') + 1, line.indexOf('}'));
+            functionRegistry[functionName] = () => {
+                executeLine(functionBody);
+            };
+        }
+
+        // Call custom functions
+        if (functionRegistry[command]) {
+            functionRegistry[command]();
+        }
+
+        // Handle draggable elements
+        if (command === 'draggable') {
+            const draggableElement = document.createElement('div');
+            draggableElement.classList.add('draggable');
+            draggableElement.style.left = `${parseInt(tokens[2])}px`;
+            draggableElement.style.top = `${parseInt(tokens[3])}px`;
+            draggableElement.style.width = tokens.includes('width') ? tokens[tokens.indexOf('width') + 1] : '100px';
+            draggableElement.style.height = tokens.includes('height') ? tokens[tokens.indexOf('height') + 1] : '100px';
+            draggableElement.style.backgroundColor = tokens.includes('color') ? tokens[tokens.indexOf('color') + 1] : 'gray';
+            draggableElement.setAttribute('draggable', true);
+            
+            output.appendChild(draggableElement);
+        }
+
+        // Handle image drawing
+        if (command === 'image') {
+            const imageUrl = getQuotedText(line);
+            const [x, y] = extractNumbers(tokens, 'at');
+            const width = tokens.includes('width') ? tokens[tokens.indexOf('width') + 1] : '100px';
+            const height = tokens.includes('height') ? tokens[tokens.indexOf('height') + 1] : '100px';
+
+            const imageElement = document.createElement('img');
+            imageElement.src = imageUrl;
+            imageElement.style.position = 'absolute';
+            imageElement.style.left = `${x}px`;
+            imageElement.style.top = `${y}px`;
+            imageElement.style.width = width;
+            imageElement.style.height = height;
+            output.appendChild(imageElement);
+        }
+    };
+
+    // Execute all lines of code
+    lines.forEach(executeLine);
+}
+
+</script>
+
+</body>
+</html>
